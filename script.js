@@ -1,464 +1,270 @@
-/* =========================================
-J.A.R.V.I.S - SCRIPT
-========================================= */
-
-/* =========================================
-
-1. API KEY
-   ========================================= */
-
-let API_KEY = localStorage.getItem("jarvis_key");
-
-if (!API_KEY) {
-
-```
-API_KEY = prompt("Enter your Gemini API Key:");
-
-if (API_KEY) {
-
-    API_KEY = API_KEY.trim();
-
-    localStorage.setItem("jarvis_key", API_KEY);
-
-}
-```
-
+* {
+  box-sizing: border-box;
 }
 
-/* =========================================
-2. GEMINI MODELS
-========================================= */
-
-const MODELS = [
-"gemini-3.6-flash",
-"gemini-flash-latest"
-];
-
-/* =========================================
-3. HTML ELEMENTS
-========================================= */
-
-const chat = document.getElementById("chat");
-
-const input = document.getElementById("msg");
-
-const sendBtn = document.getElementById("send");
-
-const micBtn = document.getElementById("mic-btn");
-
-/* =========================================
-4. GEMINI API
-========================================= */
-
-async function callGemini(promptText) {
-
-```
-if (!API_KEY) {
-
-    throw new Error(
-        "Gemini API Key not provided."
-    );
-
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: #02060d;
+  color: white;
+  font-family: Arial, sans-serif;
+  text-align: center;
+  padding: 20px;
 }
 
+/* HEADER */
 
-let lastErr;
-
-
-for (const model of MODELS) {
-
-    try {
-
-        const url =
-            "https://generativelanguage.googleapis.com/v1beta/models/" +
-            model +
-            ":generateContent?key=" +
-            encodeURIComponent(API_KEY);
-
-
-        const response = await fetch(url, {
-
-            method: "POST",
-
-            headers: {
-                "Content-Type": "application/json"
-            },
-
-            body: JSON.stringify({
-
-                contents: [
-
-                    {
-                        parts: [
-
-                            {
-                                text: promptText
-                            }
-
-                        ]
-                    }
-
-                ]
-
-            })
-
-        });
-
-
-        const data = await response.json();
-
-
-        if (!response.ok || data.error) {
-
-            lastErr = new Error(
-
-                data.error?.message ||
-                "Gemini API request failed."
-
-            );
-
-
-            if (
-                /high demand|temporar|quota|rate|unavailable|no longer available|deprecated/i
-                .test(lastErr.message)
-            ) {
-
-                continue;
-
-            }
-
-
-            throw lastErr;
-
-        }
-
-
-        if (
-            !data.candidates ||
-            !data.candidates[0] ||
-            !data.candidates[0].content ||
-            !data.candidates[0].content.parts
-        ) {
-
-            throw new Error(
-                "Invalid response from Gemini."
-            );
-
-        }
-
-
-        const reply = data.candidates[0]
-            .content
-            .parts
-            .map(part => part.text || "")
-            .join("");
-
-
-        return reply;
-
-
-    } catch (error) {
-
-        lastErr = error;
-
-    }
-
+header h1 {
+  color: #00d9ff;
+  letter-spacing: 5px;
+  margin-bottom: 5px;
 }
 
-
-throw lastErr ||
-    new Error("Gemini request failed.");
-```
-
+header p {
+  color: #78909c;
+  letter-spacing: 3px;
+  font-size: 12px;
 }
 
-/* =========================================
-5. ASK GEMINI
-========================================= */
+/* CORE */
 
-async function askGemini(promptText) {
+.core {
+  width: 220px;
+  height: 220px;
+  margin: 30px auto 10px;
+  position: relative;
 
-```
-add(
-    "J.A.R.V.I.S: Thinking...",
-    "ai"
-);
-
-
-try {
-
-    const reply =
-        await callGemini(promptText);
-
-
-    const lastMessage =
-        chat.lastElementChild;
-
-
-    lastMessage.innerText =
-        "J.A.R.V.I.S: " + reply;
-
-
-    speak(reply);
-
-
-} catch (error) {
-
-    const lastMessage =
-        chat.lastElementChild;
-
-
-    lastMessage.innerText =
-        "J.A.R.V.I.S: ERROR - " +
-        error.message;
-
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-```
+
+.ring {
+  position: absolute;
+  border: 2px solid #00d9ff;
+  border-radius: 50%;
+}
+
+.r1 {
+  width: 210px;
+  height: 210px;
+  animation: rotate 8s linear infinite;
+}
+
+.r2 {
+  width: 160px;
+  height: 160px;
+  border-style: dashed;
+  animation: rotateReverse 5s linear infinite;
+}
+
+.center {
+  width: 75px;
+  height: 75px;
+  background: #00d9ff;
+  border-radius: 50%;
+
+  box-shadow:
+    0 0 20px #00d9ff,
+    0 0 50px #00d9ff;
+}
+
+.core-text {
+  color: #00d9ff;
+  font-weight: bold;
+  letter-spacing: 3px;
+}
+
+/* STATUS */
+
+.status {
+  max-width: 600px;
+  margin: 25px auto;
+  padding: 20px;
+
+  background: #07111c;
+  border: 1px solid #12354a;
+  border-radius: 12px;
+}
+
+.status h2 {
+  color: #00d9ff;
+  font-size: 18px;
+  margin-top: 0;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 5px;
+  border-bottom: 1px solid #12354a;
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.on {
+  color: #00e676;
+}
+
+.off {
+  color: #ff5252;
+}
+
+/* CHAT */
+
+.chat {
+  max-width: 600px;
+  height: 300px;
+
+  margin: 20px auto;
+
+  padding: 15px;
+
+  background: #050d16;
+
+  border: 1px solid #12354a;
+  border-radius: 12px;
+
+  text-align: left;
+
+  overflow-y: auto;
+}
+
+.msg {
+  padding: 12px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.msg.ai {
+  background: #0b2230;
+  border-left: 3px solid #00d9ff;
+}
+
+.msg.user {
+  background: #172018;
+  border-left: 3px solid #00e676;
+}
+
+/* INPUT */
+
+.input-area {
+  max-width: 600px;
+  margin: auto;
+
+  display: flex;
+  gap: 8px;
+}
+
+#msg {
+  flex: 1;
+
+  padding: 14px;
+
+  background: #07111c;
+  color: white;
+
+  border: 1px solid #12354a;
+  border-radius: 8px;
+
+  outline: none;
+}
+
+#msg:focus {
+  border-color: #00d9ff;
+}
+
+button {
+  border: none;
+  border-radius: 8px;
+
+  background: #00d9ff;
+  color: #001018;
+
+  font-weight: bold;
+
+  padding: 0 16px;
+
+  cursor: pointer;
+}
+
+button:hover {
+  opacity: 0.8;
+}
+
+#mic-btn {
+  width: 55px;
+}
+
+/* ANIMATION */
+
+@keyframes rotate {
+
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 
 }
 
-/* =========================================
-6. SPEECH RECOGNITION
-========================================= */
+@keyframes rotateReverse {
 
-const SpeechRecognition =
-window.SpeechRecognition ||
-window.webkitSpeechRecognition;
+  from {
+    transform: rotate(360deg);
+  }
 
-let rec = null;
-
-if (SpeechRecognition) {
-
-```
-rec = new SpeechRecognition();
-
-rec.lang = "en-US";
-
-rec.continuous = false;
-
-rec.interimResults = false;
-
-
-rec.onstart = function () {
-
-    micBtn.innerText =
-        "LISTENING...";
-
-};
-
-
-rec.onresult = function (event) {
-
-    const text =
-        event.results[0][0].transcript;
-
-
-    add(
-        "YOU: " + text,
-        "user"
-    );
-
-
-    askGemini(text);
-
-};
-
-
-rec.onerror = function (event) {
-
-    console.log(
-        "Speech recognition error:",
-        event.error
-    );
-
-
-    micBtn.innerText = "🎙️";
-
-};
-
-
-rec.onend = function () {
-
-    micBtn.innerText = "🎙️";
-
-};
-
-
-micBtn.onclick = function () {
-
-    try {
-
-        rec.start();
-
-    } catch (error) {
-
-        console.log(error);
-
-    }
-
-};
-```
-
-} else {
-
-```
-micBtn.onclick = function () {
-
-    add(
-        "J.A.R.V.I.S: Voice recognition is not supported in this browser.",
-        "ai"
-    );
-
-};
-```
+  to {
+    transform: rotate(0deg);
+  }
 
 }
 
-/* =========================================
-7. TEXT TO SPEECH
-========================================= */
+/* MOBILE */
 
-let voices = [];
+@media (max-width: 600px) {
 
-function loadVoices() {
+  body {
+    padding: 12px;
+  }
 
-```
-voices =
-    speechSynthesis.getVoices();
-```
+  .core {
+    width: 190px;
+    height: 190px;
+  }
 
-}
+  .r1 {
+    width: 180px;
+    height: 180px;
+  }
 
-loadVoices();
+  .r2 {
+    width: 140px;
+    height: 140px;
+  }
 
-speechSynthesis.onvoiceschanged =
-loadVoices;
+  .input-area {
+    flex-wrap: wrap;
+  }
 
-function speak(text) {
+  #msg {
+    width: 100%;
+    flex: none;
+  }
 
-```
-if (!("speechSynthesis" in window)) {
+  #send {
+    height: 45px;
+    flex: 1;
+  }
 
-    return;
-
-}
-
-
-speechSynthesis.cancel();
-
-
-const utterance =
-    new SpeechSynthesisUtterance(text);
-
-
-utterance.rate = 1.05;
-
-utterance.pitch = 0.85;
-
-
-const voice =
-    voices.find(function (voice) {
-
-        return voice.lang
-            .toLowerCase()
-            .startsWith("en");
-
-    });
-
-
-if (voice) {
-
-    utterance.voice = voice;
-
-}
-
-
-speechSynthesis.speak(
-    utterance
-);
-```
-
-}
-
-/* =========================================
-8. SEND MESSAGE
-========================================= */
-
-function sendMessage() {
-
-```
-const text =
-    input.value.trim();
-
-
-if (!text) {
-
-    return;
-
-}
-
-
-add(
-    "YOU: " + text,
-    "user"
-);
-
-
-input.value = "";
-
-
-askGemini(text);
-```
-
-}
-
-sendBtn.onclick =
-sendMessage;
-
-/* =========================================
-9. ENTER KEY
-========================================= */
-
-input.addEventListener(
-"keydown",
-function (event) {
-
-```
-    if (event.key === "Enter") {
-
-        sendMessage();
-
-    }
-
-}
-```
-
-);
-
-/* =========================================
-10. ADD CHAT MESSAGE
-========================================= */
-
-function add(text, type) {
-
-```
-const div =
-    document.createElement("div");
-
-
-div.className =
-    "msg " + type;
-
-
-div.innerText =
-    text;
-
-
-chat.appendChild(div);
-
-
-chat.scrollTop =
-    chat.scrollHeight;
-```
+  #mic-btn {
+    height: 45px;
+  }
 
 }
