@@ -1,122 +1,70 @@
-const chat = document.getElementById("chat");
-const input = document.getElementById("msg");
-const send = document.getElementById("send");
-const statusText = document.querySelector(".status");
-
-
-// Send button
-send.addEventListener("click", sendMessage);
-
-
-// Enter key
-input.addEventListener("keydown", function (event) {
-
-    if (event.key === "Enter") {
-        event.preventDefault();
-        sendMessage();
-    }
-
-});
-
-
-function sendMessage() {
-
-    const text = input.value.trim();
-
-    // Don't send empty messages
-    if (!text) {
-        return;
-    }
-
-
-    // Add user's message
-    addMessage("YOU: " + text, "user");
-
-
-    // Clear input
-    input.value = "";
-
-
-    // Disable button while processing
-    send.disabled = true;
-
-
-    // Change status
-    setStatus("PROCESSING...", "#00eaff");
-
-
-    // Add processing message
-    const processingMessage =
-        addMessage(
-            "J.A.R.V.I.S: Processing...",
-            "ai"
-        );
-
-
-    /*
-     * FRONTEND DEMO RESPONSE
-     *
-     * This is currently frontend-only.
-     * No API or backend is being called.
-     *
-     * Replace this section later with:
-     *
-     * fetch("YOUR_BACKEND_URL/chat", {...})
-     */
-
-    setTimeout(function () {
-
-        processingMessage.innerText =
-            "J.A.R.V.I.S: Systems online. How may I assist you, Boss?";
-
-        setStatus("ONLINE", "#00ffcc");
-
-        send.disabled = false;
-
-        input.focus();
-
-    }, 1000);
+// ===== 1. API KEY (Safe: browser లో మాతమ్ర ే) =====
+let API_KEY = localStorage.getItem('jarvis_key');
+if(!API_KEY){
+API_KEY = prompt('Enter your Gemini API Key:');
+if(API_KEY) localStorage.setItem('jarvis_key', API_KEY);
 }
+// ===== 2. SMART MODELS (ఒకటిfail అయితేnext auto try) =====
+const MODELS = ["gemini-3.6-flash", "gemini-flash-latest"];
+const chat=document.getElementById('chat');
+const input=document.getElementById('msg');
+const micBtn=document.getElementById('mic-btn');
+// ===== 3. GEMINI BRAIN (auto-fallback) =====
+async function callGemini(p){
 
-
-/*
- * Add message to chat
- */
-function addMessage(text, type) {
-
-    const message = document.createElement("div");
-
-    message.className = "msg " + type;
-
-    message.innerText = text;
-
-    chat.appendChild(message);
-
-    chat.scrollTop = chat.scrollHeight;
-
-    return message;
+let lastErr;
+for(const m of MODELS){
+try{
+const res=await fetch(
+"https://generativelanguage.googleapis.com/v1beta/models/"+m+":generateContent?key="
++API_KEY,
+{method:"POST",headers:{"Content-Type":"application/json"},
+body:JSON.stringify({contents:[{parts:[{text:p}]}]})});
+const data=await res.json();
+if(data.error){
+lastErr=new Error(data.error.message);
+if(/high demand|temporar|quota|rate|unavailable|no longer
+available|deprecated/i.test(data.error.message)) continue;
+throw lastErr;
 }
-
-
-/*
- * Change system status
- */
-function setStatus(text, color) {
-
-    if (!statusText) {
-        return;
-    }
-
-    statusText.innerHTML =
-        '<span></span>' + text;
-
-    statusText.style.color = color;
-
-    const dot = statusText.querySelector("span");
-
-    if (dot) {
-        dot.style.background = color;
-        dot.style.boxShadow =
-            "0 0 10px " + color;
-    }
+return data.candidates[0].content.parts[0].text;
+}catch(e){ lastErr=e; }
 }
+throw lastErr;
+}
+async function askGemini(p){
+add('J.A.R.V.I.S: Thinking...','ai');
+try{
+const reply=await callGemini(p);
+chat.lastChild.innerText='J.A.R.V.I.S: '+reply;
+speak(reply); // reply వచ్చి న వెంటనేVOICE
+}catch(e){
+chat.lastChild.innerText='J.A.R.V.I.S: ERROR - '+e.message;
+}
+}
+// ===== 4. SPEECH RECOGNITION (వినడం) =====
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+const rec=new SR(); rec.lang='en-US'; // Telugu కి'te-IN'
+rec.onresult=(e)=>{const t=e.results[0][0].transcript;add('YOU: '+t,'user');askGemini(t);};
+micBtn.onclick=()=>{rec.start();micBtn.innerText='LISTENING...';};
+rec.onend=()=>{micBtn.innerText='️';};
+// ===== 5. TEXT-TO-SPEECH (మాట్లాడటం) =====
+let voices=[];
+function loadVoices(){ voices=speechSynthesis.getVoices(); }
+loadVoices();
+speechSynthesis.onvoiceschanged=loadVoices;
+function speak(t){
+const u=new SpeechSynthesisUtterance(t);
+
+u.rate=1.05; u.pitch=0.85;
+const v=voices.find(v=>v.lang.startsWith('en'));
+if(v) u.voice=v;
+speechSynthesis.speak(u);
+}
+// ===== 6. TEXT SEND BUTTON =====
+document.getElementById('send').onclick=()=>{
+const t=input.value.trim(); if(!t)return;
+add('YOU: '+t,'user'); input.value=''; askGemini(t);
+};
+function add(t,w){const d=document.createElement('div');d.className='msg
+'+w;d.innerText=t;chat.appendChild(d);chat.scrollTop=chat.scrollHeight;}
