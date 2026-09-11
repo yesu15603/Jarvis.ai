@@ -1,398 +1,324 @@
-// ===== 1. GEMINI API KEY =====
-// First time open ayinappudu API Key adugutundi.
-// Key browser localStorage lo save avutundi.
-
-let API_KEY = localStorage.getItem('jarvis_key');
+// ===== 1. API KEY (Safe: browser లో మాత్రమే) =====
+let API_KEY = localStorage.getItem("jarvis_key");
 
 if (!API_KEY) {
-    API_KEY = prompt('Enter your Gemini API Key:');
+    API_KEY = prompt("Enter your Gemini API Key:");
 
     if (API_KEY) {
-        API_KEY = API_KEY.trim();
-        localStorage.setItem('jarvis_key', API_KEY);
+        localStorage.setItem("jarvis_key", API_KEY);
     }
 }
 
 
-// ===== 2. GEMINI MODELS =====
-// First model fail ayite second model try chestundi.
-
+// ===== 2. SMART MODELS (first one fails -> next one try) =====
 const MODELS = [
     "gemini-3.6-flash",
     "gemini-flash-latest"
 ];
 
 
-// ===== 3. HTML ELEMENTS =====
-
-const chat = document.getElementById('chat');
-const input = document.getElementById('msg');
-const sendBtn = document.getElementById('send');
-const micBtn = document.getElementById('mic-btn');
+// ===== 3. DOM ELEMENTS =====
+const chat = document.getElementById("chat");
+const input = document.getElementById("msg");
+const micBtn = document.getElementById("mic-btn");
 
 
-// ===== 4. GEMINI BRAIN =====
-
-async function callGemini(promptText) {
+// ===== 4. GEMINI BRAIN (auto-fallback) =====
+async function callGemini(prompt) {
 
     if (!API_KEY) {
         throw new Error("Gemini API Key is missing.");
     }
 
-    let lastError;
+    let lastErr;
 
     for (const model of MODELS) {
 
         try {
 
-            const url =
+            const res = await fetch(
                 "https://generativelanguage.googleapis.com/v1beta/models/" +
                 model +
                 ":generateContent?key=" +
-                encodeURIComponent(API_KEY);
+                encodeURIComponent(API_KEY),
+                {
+                    method: "POST",
 
-            const response = await fetch(url, {
-                method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
 
-                headers: {
-                    "Content-Type": "application/json"
-                },
+                    body: JSON.stringify({
+                        contents: [
+                            {
+                                parts: [
+                                    {
+                                        text: prompt
+                                    }
+                                ]
+                            }
+                        ]
+                    })
+                }
+            );
 
-                body: JSON.stringify({
-                    contents: [
-                        {
-                            parts: [
-                                {
-                                    text: promptText
-                                }
-                            ]
-                        }
-                    ]
-                })
-            });
+            const data = await res.json();
 
+            if (!res.ok || data.error) {
 
-            const data = await response.json();
-
-
-            if (data.error) {
-
-                lastError = new Error(
-                    data.error.message || "Gemini API error"
+                lastErr = new Error(
+                    data?.error?.message ||
+                    HTTP ${res.status}: ${res.statusText}
                 );
 
+                // Try next model for temporary/model errors
+                const status = data?.error?.status || "";
+
                 if (
-                    /high demand|temporar|quota|rate|unavailable|no longer available|deprecated/i
-                    .test(data.error.message || "")
+                    res.status === 429 ||
+                    res.status === 500 ||
+                    res.status === 503 ||
+                    status === "RESOURCE_EXHAUSTED" ||
+                    status === "UNAVAILABLE"
                 ) {
                     continue;
                 }
 
-                throw lastError;
+                throw lastErr;
             }
 
+            const text =
+                data?.candidates?.[0]?.content?.parts
+                    ?.map(part => part.text || "")
+                    .join("")
+                    .trim();
 
-            const reply =
-                data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-
-            if (!reply) {
+            if (!text) {
                 throw new Error("Gemini returned an empty response.");
             }
 
+            return text;
 
-            return reply;
+        } catch (err) {
 
-        } catch (error) {
+            lastErr = err;
 
-            lastError = error;
-
+            // Try the next model
+            continue;
         }
     }
 
-
-    throw lastError || new Error("Gemini request failed.");
+    throw lastErr || new Error("Gemini request failed.");
 }
 
 
-// ===== 5. ASK JARVIS =====
+// ===== 5. ASK GEMINI =====
+async function askGemini(prompt) {
 
-async function askGemini(promptText) {
-
-    const thinkingMessage =
-        add("J.A.R.V.I.S: Thinking...", "ai");
-
+    add("J.A.R.V.I.S: Thinking...", "ai");
 
     try {
 
-        const reply = await callGemini(promptText);
+        const reply = await callGemini(prompt);
 
+        // Remove the temporary Thinking message
+        const messages = chat.querySelectorAll(".msg.ai");
 
-        thinkingMessage.innerText =
-            "J.A.R.V.I.S: " + reply;
+        if (messages.length > 0) {
+            const lastMessage = messages[messages.length - 1];
 
+            if (lastMessage.innerText === "J.A.R.V.I.S: Thinking...") {
+                lastMessage.remove();
+            }
+        }
 
-        // Gemini reply voice lo speak chestundi
+        add("J.A.R.V.I.S: " + reply, "ai");
+
         speak(reply);
 
+    } catch (err) {
 
-    } catch (error) {
+        const messages = chat.querySelectorAll(".msg.ai");
 
-        thinkingMessage.innerText =
-            "J.A.R.V.I.S: ERROR - " +
-            error.message;
+        if (messages.length > 0) {
+            const lastMessage = messages[messages.length - 1];
 
+            if (lastMessage.innerText === "J.A.R.V.I.S: Thinking...") {
+                lastMessage.remove();
+            }
+        }
+
+        add(
+            "J.A.R.V.I.S ERROR: " + (err.message || err),
+            "ai"
+        );
     }
 }
 
 
 // ===== 6. SPEECH RECOGNITION =====
-// Mic nundi voice teesukoni text ga convert chestundi.
-
-const SpeechRecognition =
+const SR =
     window.SpeechRecognition ||
     window.webkitSpeechRecognition;
 
-
 let rec = null;
 
+if (SR) {
 
-if (SpeechRecognition) {
+    rec = new SR();
 
-    rec = new SpeechRecognition();
-
-    // English voice recognition
-    // Telugu kosam: te-IN
     rec.lang = "en-US";
-
     rec.continuous = false;
-
     rec.interimResults = false;
 
+    rec.onresult = (e) => {
 
-    // ===== MIC START =====
+        const t = e.results[0][0].transcript;
 
-    rec.onstart = function () {
+        add("YOU: " + t, "user");
 
-        micBtn.innerText = "🔴";
-
-        micBtn.title = "Listening...";
-
+        askGemini(t);
     };
 
-
-    // ===== VOICE RESULT =====
-
-    rec.onresult = function (event) {
-
-        const text =
-            event.results[0][0].transcript;
-
-
-        if (!text.trim()) {
-            return;
-        }
-
-
+    rec.onerror = (e) => {
         add(
-            "YOU: " + text,
-            "user"
+            "J.A.R.V.I.S: Microphone error - " + e.error,
+            "ai"
         );
-
-
-        askGemini(text);
-
     };
 
+    rec.onend = () => {
 
-    // ===== MIC ERROR =====
-
-    rec.onerror = function (event) {
-
-        console.log(
-            "Speech recognition error:",
-            event.error
-        );
-
-        micBtn.innerText = "🎙️";
-
-        micBtn.title = "Voice input";
-
-    };
-
-
-    // ===== MIC END =====
-
-    rec.onend = function () {
-
-        micBtn.innerText = "🎙️";
-
-        micBtn.title = "Voice input";
-
-    };
-
-
-    // ===== MIC BUTTON =====
-
-    micBtn.onclick = function () {
-
-        try {
-
-            rec.start();
-
-        } catch (error) {
-
-            console.log(
-                "Microphone start error:",
-                error
-            );
-
+        if (micBtn) {
+            micBtn.innerText = "🎤";
         }
-
     };
+
+    if (micBtn) {
+
+        micBtn.onclick = () => {
+
+            try {
+
+                rec.start();
+
+                micBtn.innerText = "LISTENING...";
+
+            } catch (err) {
+
+                // Prevent "recognition has already started" error
+                console.log(err);
+            }
+        };
+    }
 
 } else {
 
-    // Browser Speech Recognition support lekapothe
+    if (micBtn) {
 
-    micBtn.disabled = true;
-
-    micBtn.title =
-        "Speech Recognition is not supported in this browser";
-
+        micBtn.onclick = () => {
+            add(
+                "J.A.R.V.I.S: Speech Recognition is not supported in this browser.",
+                "ai"
+            );
+        };
+    }
 }
 
 
-// ===== 7. TEXT TO SPEECH =====
-// JARVIS reply ni voice lo cheptundi.
-
+// ===== 7. TEXT-TO-SPEECH =====
 let voices = [];
 
-
 function loadVoices() {
-
-    if ("speechSynthesis" in window) {
-        voices = speechSynthesis.getVoices();
-    }
-
+    voices = speechSynthesis.getVoices();
 }
-
 
 loadVoices();
 
-
-if ("speechSynthesis" in window) {
-
-    speechSynthesis.onvoiceschanged =
-        loadVoices;
-
-}
+speechSynthesis.onvoiceschanged = loadVoices;
 
 
-function speak(text) {
+function speak(t) {
 
     if (!("speechSynthesis" in window)) {
         return;
     }
 
-
-    // Existing speech stop chestundi
+    // Cancel previous speech
     speechSynthesis.cancel();
 
+    const u = new SpeechSynthesisUtterance(t);
 
-    const utterance =
-        new SpeechSynthesisUtterance(text);
+    u.rate = 1.05;
+    u.pitch = 0.85;
 
+    const v = voices.find(
+        voice => voice.lang &&
+        voice.lang.startsWith("en")
+    );
 
-    utterance.rate = 1.05;
-
-    utterance.pitch = 0.85;
-
-
-    // English voice select
-    const voice =
-        voices.find(
-            voice => voice.lang.startsWith("en")
-        );
-
-
-    if (voice) {
-        utterance.voice = voice;
+    if (v) {
+        u.voice = v;
     }
 
-
-    speechSynthesis.speak(utterance);
-
+    speechSynthesis.speak(u);
 }
 
 
-// ===== 8. SEND BUTTON =====
+// ===== 8. TEXT SEND BUTTON =====
+const sendBtn = document.getElementById("send");
 
-sendBtn.onclick = function () {
+if (sendBtn) {
 
-    const text =
-        input.value.trim();
+    sendBtn.onclick = () => {
+
+        const t = input.value.trim();
+
+        if (!t) {
+            return;
+        }
+
+        add("YOU: " + t, "user");
+
+        input.value = "";
+
+        askGemini(t);
+    };
+}
 
 
-    if (!text) {
+// ===== 9. ENTER KEY SEND =====
+if (input) {
+
+    input.addEventListener("keydown", (e) => {
+
+        if (e.key === "Enter" && !e.shiftKey) {
+
+            e.preventDefault();
+
+            if (sendBtn) {
+                sendBtn.click();
+            }
+        }
+    });
+}
+
+
+// ===== 10. ADD MESSAGE TO CHAT =====
+function add(t, w) {
+
+    if (!chat) {
+        console.error("Chat element not found.");
         return;
     }
 
+    const d = document.createElement("div");
 
-    add(
-        "YOU: " + text,
-        "user"
-    );
+    d.className = "msg " + w;
 
+    d.innerText = t;
 
-    input.value = "";
+    chat.appendChild(d);
 
-
-    askGemini(text);
-
-};
-
-
-// ===== 9. ENTER KEY =====
-
-input.addEventListener(
-    "keydown",
-    function (event) {
-
-        if (event.key === "Enter") {
-
-            event.preventDefault();
-
-            sendBtn.click();
-
-        }
-
-    }
-);
-
-
-// ===== 10. ADD MESSAGE =====
-
-function add(text, type) {
-
-    const message =
-        document.createElement("div");
-
-
-    message.className =
-        "msg " + type;
-
-
-    message.innerText = text;
-
-
-    chat.appendChild(message);
-
-
-    chat.scrollTop =
-        chat.scrollHeight;
-
-
-    return message;
-
-}
+    chat.scrollTop = chat.scrollHeight;
+          }
